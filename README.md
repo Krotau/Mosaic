@@ -74,6 +74,9 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
 uv run pytest
+uv build
+uv run python -c "from mosaic.app import app; assert app.title == 'Mosaic'"
+git status --short
 ```
 
 Each command is an independent acceptance gate:
@@ -82,6 +85,15 @@ Each command is an independent acceptance gate:
 - `ruff check` runs lint and import-order checks.
 - `mypy` performs strict static type checking over project and test code.
 - `pytest` runs behavior and packaging tests.
+- `uv build` creates both the source distribution and wheel from package metadata.
+- The direct import constructs the same `mosaic.app:app` target used by Uvicorn.
+- `git status --short` must produce no output; environments, caches, and distributions are
+  generated locally but ignored.
+
+Complete the real-process smoke check by starting `uv run uvicorn mosaic.app:app` and
+requesting `curl --fail http://127.0.0.1:8000/health` from another terminal, as shown in
+[Run the application](#run-the-application). CI automates the same startup, readiness,
+response, and shutdown sequence.
 
 To apply the formatter before repeating the checks, run:
 
