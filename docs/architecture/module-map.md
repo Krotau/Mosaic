@@ -15,7 +15,10 @@ fault-injected. An **adapter** implements that seam for a particular technology.
 Phase 0 is an application foundation, not one of the future domain Modules. Its composition
 root is the single place that constructs the FastAPI application from validated settings
 and logging configuration. The HTTP health operation is the highest behavioral test seam.
-Framework request and response types stay at that edge.
+Framework request and response types stay at that edge. That edge also creates an opaque
+request identifier and an explicitly anonymous actor context. Phase 2 will enrich the
+context when real domain request adapters arrive; Phase 0 performs no authentication or
+authorization.
 
 This shape keeps concrete construction local. Later Modules can be injected at the
 composition root without making their callers select adapters or control transactions.

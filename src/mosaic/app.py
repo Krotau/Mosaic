@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from mosaic.config import Settings
+from mosaic.http.context import RequestContextMiddleware
 from mosaic.http.health import router as health_router
 from mosaic.log_config import configure_logging
 
@@ -23,6 +24,7 @@ def create_app(settings: Settings) -> FastAPI:
             logger.info("application_stopped")
 
     application = FastAPI(title="Mosaic", lifespan=lifespan)
+    application.add_middleware(RequestContextMiddleware, logger=logger)
     application.include_router(health_router)
     return application
 
