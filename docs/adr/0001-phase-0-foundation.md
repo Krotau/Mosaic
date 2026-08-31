@@ -48,7 +48,10 @@ settings and logging through their public construction and configuration interfa
 private helper order.
 
 Formatting checks, linting, strict type checking, and tests remain separate acceptance
-gates. Passing one does not stand in for another.
+gates. A package build, direct application import, real Uvicorn startup and health request,
+and clean Git status complete the Phase 0 verification sequence. CI runs the documented
+locked synchronization and every gate independently; passing one does not stand in for
+another.
 
 ### Deferred integrations
 

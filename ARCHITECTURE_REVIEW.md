@@ -561,6 +561,9 @@ Mosaic/
 ├── .python-version                                # [P0][optional] local runtime selection
 ├── .env.example                                   # [P0] documented non-secret configuration
 ├── .gitignore                                     # [P0]
+├── .github/
+│   └── workflows/
+│       └── ci.yml                                 # [P0] locked install and acceptance gates
 ├── compose.yaml                                   # [P1][optional] local PostgreSQL contract tests
 ├── Dockerfile                                     # [P11][optional] only when deployment target is known
 │

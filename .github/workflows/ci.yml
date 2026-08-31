@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  phase-0:
+    name: Phase 0 acceptance gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.11.7"
+
+      - name: Install the pinned Python version
+        run: uv python install
+
+      - name: Synchronize locked dependencies
+        run: uv sync --locked
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type-check
+        run: uv run mypy src tests
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Smoke-test the import target
+        run: uv run python -c "from mosaic.app import app; assert app.title == 'Mosaic'"
+
+      - name: Smoke-test process startup and health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          server_log="${RUNNER_TEMP}/mosaic-uvicorn.log"
+          uv run uvicorn mosaic.app:app --host 127.0.0.1 --port 8000 >"${server_log}" 2>&1 &
+          server_pid=$!
+
+          cleanup() {
+            kill "${server_pid}" 2>/dev/null || true
+            wait "${server_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          health_response=""
+          for _ in {1..30}; do
+            if health_response="$(
+              curl --fail --show-error --silent http://127.0.0.1:8000/health 2>/dev/null
+            )"; then
+              break
+            fi
+            if ! kill -0 "${server_pid}" 2>/dev/null; then
+              cat "${server_log}"
+              exit 1
+            fi
+            sleep 0.2
+          done
+
+          if [[ "${health_response}" != '{"status":"ok"}' ]]; then
+            cat "${server_log}"
+            exit 1
+          fi
+
+      - name: Confirm the checkout remains clean
+        shell: bash
+        run: test -z "$(git status --porcelain --untracked-files=all)"
