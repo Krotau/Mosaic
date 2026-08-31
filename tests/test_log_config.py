@@ -1,20 +1,10 @@
 """Tests for Mosaic's public structured-logging seam."""
 
-import json
-from typing import Any
-
 import pytest
 
 from mosaic.config import Environment, LogLevel, Settings
 from mosaic.log_config import configure_logging
-
-
-def _last_json_record(captured: str) -> dict[str, Any]:
-    """Decode the most recently emitted structured record."""
-    decoded: object = json.loads(captured.strip().splitlines()[-1])
-    if not isinstance(decoded, dict):
-        raise AssertionError("structured log record must be a JSON object")
-    return {str(key): value for key, value in decoded.items()}
+from tests.log_records import decode_json_records
 
 
 def test_configured_logger_emits_stable_lifecycle_fields(
@@ -25,7 +15,7 @@ def test_configured_logger_emits_stable_lifecycle_fields(
 
     logger.info("application_started")
 
-    record = _last_json_record(capsys.readouterr().err)
+    record = decode_json_records(capsys.readouterr().err)[-1]
     assert record["event"] == "application_started"
     assert record["level"] == "info"
     assert record["environment"] == "test"
@@ -45,7 +35,7 @@ def test_configured_logger_honors_the_injected_log_level(
     captured = capsys.readouterr().err
     assert len(captured.strip().splitlines()) == 1
     assert "application_started" not in captured
-    record = _last_json_record(captured)
+    record = decode_json_records(captured)[-1]
     assert record["event"] == "application_stopped"
     assert record["level"] == "error"
 

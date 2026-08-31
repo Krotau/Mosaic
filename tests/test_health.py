@@ -1,15 +1,16 @@
 """Behavioral tests for Mosaic's public ASGI application seam."""
 
 import asyncio
-import json
-from typing import Any
+from uuid import UUID
 
 import httpx
 import pytest
+from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
 from mosaic.app import app, create_app
 from mosaic.config import Environment, LogLevel, Settings
+from tests.log_records import decode_json_records
 
 
 def _test_settings() -> Settings:
@@ -18,21 +19,14 @@ def _test_settings() -> Settings:
 
 
 async def _request_health(application: FastAPI) -> httpx.Response:
-    """Exercise the application through its real in-process ASGI interface."""
-    transport = httpx.ASGITransport(app=application)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        return await client.get("/health")
-
-
-def _json_records(captured: str) -> list[dict[str, Any]]:
-    """Decode all structured log records emitted during a lifecycle."""
-    records: list[dict[str, Any]] = []
-    for line in captured.strip().splitlines():
-        decoded: object = json.loads(line)
-        if not isinstance(decoded, dict):
-            raise AssertionError("structured log record must be a JSON object")
-        records.append({str(key): value for key, value in decoded.items()})
-    return records
+    """Exercise startup, HTTP, and shutdown through public ASGI messages."""
+    async with LifespanManager(application) as manager:
+        transport = httpx.ASGITransport(app=manager.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get("/health")
 
 
 def test_health_operation_returns_stable_machine_readable_document() -> None:
@@ -67,16 +61,37 @@ def test_application_lifespan_emits_structured_lifecycle_events(
     """Application availability transitions are observable as structured logs."""
     application = create_app(_test_settings())
 
-    async def run_lifespan() -> None:
-        async with application.router.lifespan_context(application):
-            pass
+    asyncio.run(_request_health(application))
 
-    asyncio.run(run_lifespan())
-
-    records = _json_records(capsys.readouterr().err)
-    assert [record["event"] for record in records] == [
+    records = decode_json_records(capsys.readouterr().err)
+    lifecycle_records = [
+        record
+        for record in records
+        if record["event"] in {"application_started", "application_stopped"}
+    ]
+    assert [record["event"] for record in lifecycle_records] == [
         "application_started",
         "application_stopped",
     ]
-    assert all(record["environment"] == "test" for record in records)
-    assert all(record["level"] == "info" for record in records)
+    assert all(record["environment"] == "test" for record in lifecycle_records)
+    assert all(record["level"] == "info" for record in lifecycle_records)
+
+
+def test_http_request_receives_request_and_anonymous_actor_context(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every HTTP request is correlated without claiming an authenticated actor."""
+    application = create_app(_test_settings())
+
+    response = asyncio.run(_request_health(application))
+
+    request_id = str(UUID(response.headers["x-request-id"]))
+    records = decode_json_records(capsys.readouterr().err)
+    request_record = next(
+        record for record in records if record["event"] == "http_request_completed"
+    )
+    assert request_record["request_id"] == request_id
+    assert request_record["actor_kind"] == "anonymous"
+    assert request_record["method"] == "GET"
+    assert request_record["path"] == "/health"
+    assert request_record["status_code"] == 200

@@ -404,7 +404,7 @@ When a deep module replaces a cluster of shallow helpers, remove redundant helpe
 - Record the deep-module direction in the initial ADR.
 - Do not create empty packages for all later phases.
 - Document supported Python and dependency versions, but verify version-sensitive combinations in small executable spikes rather than asserting compatibility from documentation alone.
-- Include actor/request context in external request models even if authorization is permissive initially; retrofitting identity into every interface in Phase 11 would be disruptive.
+- Establish request correlation and an explicitly anonymous actor context at the HTTP edge. Carry that context into external/domain request models as those interfaces arrive; retrofitting identity in Phase 11 would be disruptive.
 
 ### Phase 1 — Control-plane persistence
 
@@ -605,7 +605,7 @@ Mosaic/
 │       │   ├── __init__.py                        # [P0]
 │       │   ├── health.py                          # [P0]
 │       │   ├── errors.py                          # [P2] domain-error to HTTP-result mapping
-│       │   ├── context.py                         # [P2] actor, request, correlation context
+│       │   ├── context.py                         # [P0] request ID + anonymous actor; [P2] auth enrichment
 │       │   ├── providers.py                       # [P2] provider request/response adapter
 │       │   ├── registrations.py                   # [P2] registration request/response adapter
 │       │   ├── schemas.py                         # [P2] schema request/response adapter
@@ -722,9 +722,13 @@ Mosaic/
 │       └── cli.py                                 # [P11] thin administration command adapter
 │
 ├── tests/
+│   ├── __init__.py                                # [P0] test-support namespace
 │   ├── conftest.py                                # [P0] only genuinely global fixtures
+│   ├── log_records.py                             # [P0] structured-log assertion helper
 │   ├── test_health.py                             # [P0]
 │   ├── test_config.py                             # [P0]
+│   ├── test_log_config.py                         # [P0]
+│   ├── test_package.py                            # [P0]
 │   ├── test_architecture.py                       # [P1] public/private import discipline
 │   ├── fakes/
 │   │   ├── __init__.py                            # [P1]
@@ -806,7 +810,7 @@ The projected tree is easier to apply when reduced to what each phase actually a
 
 ### Phase 0
 
-Create packaging and tool files, the composition root, configuration, logging, the HTTP health adapter, basic tests, two architecture documents, and the initial ADR. Do not create empty domain packages.
+Create packaging and tool files, the composition root, configuration, logging, the HTTP health adapter, request correlation with anonymous actor context, basic tests, two architecture documents, and the initial ADR. Do not create empty domain packages.
 
 ### Phase 1
 
@@ -814,7 +818,7 @@ Create the Control Plane package, typed identifiers, clock seam, two persistence
 
 ### Phase 2
 
-Add the schema codec, the Provider/Registration/schema HTTP adapters, HTTP error mapping and actor context, schema history tests, and the fingerprint ADR. Avoid splitting Provider, Registration, and Schema into separate repository packages.
+Add the schema codec, the Provider/Registration/schema HTTP adapters, HTTP error mapping, authenticated-actor enrichment for the existing request context, schema history tests, and the fingerprint ADR. Avoid splitting Provider, Registration, and Schema into separate repository packages.
 
 ### Phase 3
 

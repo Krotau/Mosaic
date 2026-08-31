@@ -17,7 +17,7 @@ be tested.
 Use standard CPython 3.12 with a repository pin and a `src`-layout installable package. Use
 uv to create the environment, resolve dependencies, and enforce the committed lockfile.
 Direct runtime dependencies are FastAPI, Uvicorn, Pydantic Settings, and structlog.
-HTTPX, pytest, Ruff, and mypy are development dependencies.
+ASGI Lifespan, HTTPX, pytest, Ruff, and mypy are development dependencies.
 
 The project configuration is centralized in `pyproject.toml`; resolved versions live in
 `uv.lock`. Generated environments, caches, secrets, and build output remain untracked.
@@ -32,20 +32,30 @@ not construct the framework.
 ### Configuration and logging
 
 Construct configuration once from environment-backed Pydantic settings and inject it into
-application construction. Use the `MOSAIC_` prefix. Phase 0 settings cover only runtime
-environment and log level; no database, storage, or analytical-engine configuration is
-invented.
+application construction. Use the `MOSAIC_` prefix, load an optional `.env` file from the
+process working directory for local development, and give real environment variables
+precedence. Phase 0 settings cover only runtime environment and log level; no database,
+storage, or analytical-engine configuration is invented.
 
 Configure structlog at the composition boundary and emit structured event and level fields.
 Lifecycle events use the same logging setup. Settings representations and the committed
 environment example contain no secrets.
 
+### HTTP request context
+
+Generate an opaque request identifier for each HTTP request, return it as `X-Request-ID`,
+and bind it to a structured completion event. Install a typed actor/request context at the
+HTTP edge, with the Phase 0 actor explicitly limited to `anonymous`. Do not accept a
+caller-supplied identity or make authentication or authorization decisions in this phase.
+Phase 2 can enrich this same HTTP context when it introduces domain request adapters.
+
 ### Verification seams
 
 Use the HTTP interface produced by the application factory as the highest Phase 0 behavior
-seam. Exercise it in process with HTTPX rather than launching a network server. Test
-settings and logging through their public construction and configuration interfaces, not
-private helper order.
+seam. Exercise startup, HTTP requests, and shutdown in process with ASGI Lifespan and
+HTTPX, which communicate only through public ASGI messages rather than FastAPI router
+internals. Test settings and logging through their public construction and configuration
+interfaces, not private helper order.
 
 Formatting checks, linting, strict type checking, and tests remain separate acceptance
 gates. A package build, direct application import, real Uvicorn startup and health request,
